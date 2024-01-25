@@ -1,8 +1,12 @@
 use serde::Deserialize;
 
+// base url for api
 const BASE_URL: &str = "https://api.weatherapi.com/v1/current.json";
 
 #[derive(thiserror::Error, Debug)]
+/// The Error enum represents all possible error cases that can occur when
+/// interacting with the API. This provides a clean way to handle errors in
+/// a structured way.
 pub enum Error {
     #[error("Url parsing failed")]
     UrlParsing(#[from] url::ParseError),
@@ -17,11 +21,17 @@ pub enum Error {
 }
 
 #[derive(Deserialize, Debug)]
+/// Response contains the location and current weather data from the API
 pub struct Response {
     location: Location,
     current: Current,
 }
 
+/// Getters for the `location` and `current` fields of the `Response` struct.
+///
+/// Returns a reference to the `Location` struct containing location data.
+///
+/// Returns a reference to the `Current` struct containing current weather data.
 impl Response {
     pub fn location(&self) -> &Location {
         &self.location
@@ -33,6 +43,8 @@ impl Response {
 }
 
 #[derive(Deserialize, Debug)]
+/// Response from weatherapi under json value `location`.
+/// Contains location data
 pub struct Location {
     name: String,
     region: String,
@@ -41,6 +53,7 @@ pub struct Location {
     lon: f32,
 }
 
+/// Getters for the `Location` struct containing location data.
 impl Location {
     pub fn name(&self) -> &str {
         &self.name
@@ -64,6 +77,8 @@ impl Location {
 }
 
 #[derive(Deserialize, Debug)]
+/// Response from weatherapi under json value `current`.
+/// Contains current weather data
 pub struct Current {
     temp_c: f32,
     temp_f: f32,
@@ -78,6 +93,7 @@ pub struct Current {
     pressure_in: f32,
 }
 
+/// Provides getter methods for the various fields of the `Current` struct.
 impl Current {
     pub fn temp_c(&self) -> f32 {
         self.temp_c
@@ -125,11 +141,14 @@ impl Current {
 }
 
 #[derive(Deserialize, Debug)]
+/// Condition represents the current weather condition
+/// Contains the textual description of the weather condition and the name of an icon representing the weather condition.
 pub struct Condition {
     text: String,
     icon: String,
 }
 
+/// Provides getter methods for the `text` and `icon` fields of a `Condition` struct.
 impl Condition {
     pub fn text(&self) -> &str {
         &self.text
@@ -146,6 +165,8 @@ pub struct WeatherAPI {
 }
 
 impl WeatherAPI {
+    // initialiser for WeatherAPI
+    // api_key & location required
     pub fn new(api_key: &str, location: &str) -> WeatherAPI {
         WeatherAPI {
             api_key: api_key.to_string(),
@@ -153,25 +174,27 @@ impl WeatherAPI {
         }
     }
 
+    // prepare url for request
     fn prepare_url(&self) -> Result<String, Error> {
-        let mut url: url::Url = url::Url::parse(BASE_URL)?;
-        url.query_pairs_mut()
-            .append_pair("key", &self.api_key)
-            .append_pair("q", &self.location);
+        let url: url::Url =
+            url::Url::parse_with_params(BASE_URL, [("key", &self.api_key), ("q", &self.location)])?;
 
         Ok(url.to_string())
     }
 
+    // perform fetch request
     pub fn fetch(&self) -> Result<Response, Error> {
         let url: String = self.prepare_url()?;
         let request: ureq::Request = ureq::get(&url);
         let response: ureq::Response = request.call()?;
 
         match response.status() {
+            // if status code is 200, return response
             200 => {
                 let json_response: Response = response.into_json()?;
                 return Ok(json_response);
             }
+            // if status code is not 200, find error code + return error
             _ => {
                 let response_err: serde_json::Value = response.into_json()?;
                 let code: String = response_err["error"]["code"].to_string();
@@ -182,6 +205,7 @@ impl WeatherAPI {
     }
 }
 
+// error mapping
 fn map_response_err(code: Option<String>) -> Error {
     if let Some(code) = code {
         match code.as_str() {
