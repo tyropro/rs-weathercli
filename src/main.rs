@@ -1,74 +1,28 @@
-use std::error::Error;
+use weatherapi;
 
-use serde::Deserialize;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv::dotenv()?;
 
-#[derive(Deserialize, Debug)]
-struct WeatherData {
-    location: WeatherLocation,
-    current: WeatherCurrent,
-}
+    let api_key: String = std::env::var("API_KEY")?;
+    let location: String = std::env::var("LOCATION")?;
 
-#[derive(Deserialize, Debug)]
-struct WeatherLocation {
-    name: String,
-    region: String,
-    country: String,
-    lat: f32,
-    lon: f32,
-}
+    let weatherapi = weatherapi::WeatherAPI::new(&api_key, &location);
 
-#[derive(Deserialize, Debug)]
-struct WeatherCurrent {
-    temp_c: f32,
-    temp_f: f32,
-    feelslike_c: f32,
-    feelslike_f: f32,
-    wind_mph: f32,
-    wind_kph: f32,
-    wind_degree: f32,
-    wind_dir: String,
-    condition: WeatherCondition,
-    pressure_mb: f32,
-    pressure_in: f32,
-}
+    let weatherapi_response = weatherapi.fetch()?;
 
-#[derive(Deserialize, Debug)]
-struct WeatherCondition {
-    text: String,
-    icon: String,
-}
-
-fn get_data(url: &str) -> Result<WeatherData, Box<dyn Error>> {
-    // get the response from url
-    let resp = ureq::get(url).call()?.into_string()?;
-
-    // dbg!(&resp);
-
-    // parse the response into a WeatherData struct
-    let weather_data: WeatherData = serde_json::from_str(&resp)?;
-
-    Ok(weather_data)
-}
-
-fn main() -> Result<(), Box<dyn Error>> {
-    // loads .env file
-    dotenv::dotenv().ok();
-
-    // loads api key and location from .env
-    let api_key = std::env::var("API_KEY")?;
-    let location = std::env::var("LOCATION")?;
-
-    // build the url with api key and location
-    let url = format!(
-        "https://api.weatherapi.com/v1/current.json?key={}&q={}&aqi=no",
-        api_key, location,
+    println!(
+        "Location:\n  Name: {}\n  Region: {} \n  Country: {}\n",
+        weatherapi_response.location().name(),
+        weatherapi_response.location().region(),
+        weatherapi_response.location().country()
     );
 
-    // get the response from url
-    let weather_data = get_data(&url)?;
+    let current_weather = weatherapi_response.current();
 
-    // print the response as debug
-    println!("{:?}", weather_data);
+    println!(
+        "Current Weather:\n  Temperature (C): {}\n  Temperature (F): {}\n  Feels Like (C): {}\n  Feels Like (F): {}\n  Wind (mph): {}\n  Wind (km/h): {}\n  Wind Direction: {}\n  Condition: {}\n  Pressure (mb): {}\n  Pressure (in): {}",
+        current_weather.temp_c(), current_weather.temp_f(), current_weather.feelslike_c(), current_weather.feelslike_f(), current_weather.wind_mph(), current_weather.wind_kph(), current_weather.wind_dir(), current_weather.condition().text(), current_weather.pressure_mb(), current_weather.pressure_in()
+    );
 
     Ok(())
 }
